@@ -5,31 +5,23 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>مواقيت الصلاة والتقويم</title>
     <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, sans-serif; }
         body { background: transparent; display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 5px; }
         
         .card {
-            background-color: #c7d2fe; /* لون الفواصل (بنفسجي فاتح) */
-            border: 3px solid #c7d2fe; /* الإطار الخارجي سميك */
+            background-color: #c7d2fe;
+            border: 3px solid #c7d2fe;
             border-radius: 16px;
             width: 100%;
             max-width: 400px;
             overflow: hidden;
             display: grid;
             grid-template-columns: repeat(6, 1fr);
-            gap: 2px; /* عرض الفاصل (2 بكسل) */
+            gap: 2px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
         }
 
-        .cell { 
-            background-color: #ffffff; 
-            display: flex; 
-            flex-direction: column; 
-            justify-content: center; 
-            align-items: center; 
-            text-align: center;
-            padding: 10px 5px;
-        }
-
+        .cell { background-color: #ffffff; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; padding: 10px 5px; }
         .half-width { grid-column: span 3; }
         .third-width { grid-column: span 2; }
 
@@ -41,11 +33,18 @@
         .prayer-time { font-size: 16px; color: #334155; font-weight: bold; direction: ltr; }
         
         .location-bar { grid-column: span 6; background-color: #f8fafc; font-size: 11px; color: #64748b; padding: 6px; text-align: center; font-weight: bold; }
+        
+        /* مؤشر تحميل صغير يظهر فقط عند جلب بيانات جديدة */
+        .loading-dot { width: 6px; height: 6px; border-radius: 50%; background-color: #4f46e5; position: absolute; top: 5px; left: 5px; opacity: 0; transition: opacity 0.3s; }
+        .loading-dot.active { opacity: 1; animation: pulse 1s infinite; }
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.3; } 100% { opacity: 1; } }
     </style>
 </head>
 <body>
 
-    <div class="card">
+    <div class="card" style="position: relative;">
+        <div class="loading-dot" id="loadingIndicator"></div>
+        
         <div class="cell half-width year-cell" id="gregYear">----</div>
         <div class="cell half-width year-cell" id="hijriYear">----</div>
         <div class="cell half-width month-cell" id="gregMonth">----</div>
@@ -53,36 +52,18 @@
         <div class="cell half-width day-cell" id="gregDay">--</div>
         <div class="cell half-width day-cell" id="hijriDay">--</div>
 
-        <div class="cell third-width">
-            <div class="prayer-name">الفجر</div>
-            <div class="prayer-time" id="fajr">--:--</div>
-        </div>
-        <div class="cell third-width">
-            <div class="prayer-name">الشمس</div>
-            <div class="prayer-time" id="sunrise">--:--</div>
-        </div>
-        <div class="cell third-width">
-            <div class="prayer-name">الظهر</div>
-            <div class="prayer-time" id="dhuhr">--:--</div>
-        </div>
-
-        <div class="cell third-width">
-            <div class="prayer-name">العصر</div>
-            <div class="prayer-time" id="asr">--:--</div>
-        </div>
-        <div class="cell third-width">
-            <div class="prayer-name">المغرب</div>
-            <div class="prayer-time" id="maghrib">--:--</div>
-        </div>
-        <div class="cell third-width">
-            <div class="prayer-name">العشاء</div>
-            <div class="prayer-time" id="isha">--:--</div>
-        </div>
+        <div class="cell third-width"><div class="prayer-name">الفجر</div><div class="prayer-time" id="fajr">--:--</div></div>
+        <div class="cell third-width"><div class="prayer-name">الشمس</div><div class="prayer-time" id="sunrise">--:--</div></div>
+        <div class="cell third-width"><div class="prayer-name">الظهر</div><div class="prayer-time" id="dhuhr">--:--</div></div>
+        <div class="cell third-width"><div class="prayer-name">العصر</div><div class="prayer-time" id="asr">--:--</div></div>
+        <div class="cell third-width"><div class="prayer-name">المغرب</div><div class="prayer-time" id="maghrib">--:--</div></div>
+        <div class="cell third-width"><div class="prayer-name">العشاء</div><div class="prayer-time" id="isha">--:--</div></div>
         
         <div class="location-bar">القاهرة، مصر (طريقة الأزهر الشريف)</div>
     </div>
 
     <script>
+        // دالة تحويل الوقت إلى نظام 12 ساعة
         function formatTime12h(time24) {
             if (!time24) return '--:--';
             let [hours, minutes] = time24.split(':');
@@ -92,7 +73,7 @@
             return `${h}:${minutes}`;
         }
 
-        // دالة تحديث التاريخ الميلادي فقط (بتشتغل محلياً)
+        // 1. تحديث التاريخ الميلادي (محلياً من الموبايل)
         function updateGregorianDate() {
             const now = new Date();
             document.getElementById('gregYear').textContent = now.getFullYear();
@@ -100,7 +81,7 @@
             document.getElementById('gregDay').textContent = now.getDate();
         }
 
-        // دالة تحديث الواجهة بالبيانات (سواء من النت أو من الذاكرة)
+        // 2. تحديث الواجهة بالبيانات (من الشبكة أو الذاكرة)
         function updateUI(data) {
             const timings = data.timings;
             const hijri = data.hijri;
@@ -117,57 +98,94 @@
             document.getElementById('isha').textContent = formatTime12h(timings.Isha);
         }
 
-        // دالة جلب البيانات من السيرفر
+        // 3. جلب البيانات من السيرفر
         async function fetchData() {
-            try {
-                const response = await fetch('https://api.aladhan.com/v1/timingsByCity?city=Cairo&country=Egypt&method=5&language=ar');
-                if (!response.ok) throw new Error("Network response was not ok");
-                
-                const data = await response.json();
-                const payload = {
-                    timings: data.data.timings,
-                    hijri: data.data.date.hijri
-                };
+            const loadingDot = document.getElementById('loadingIndicator');
+            loadingDot.classList.add('active'); // إظهار مؤشر التحميل
 
-                // حفظ البيانات في ذاكرة الموبايل عشان متتمسحش لو النت قطع
-                localStorage.setItem('prayerData', JSON.stringify(payload));
-                
-                // تحديث الشاشة
-                updateUI(payload);
+            // الرابط الأساسي والرابط الاحتياطي (كلاهما من AlAdhan)
+            const urls = [
+                'https://api.aladhan.com/v1/timingsByCity?city=Cairo&country=Egypt&method=5&language=ar',
+                'https://api.aladhan.com/v1/timingsByAddress?address=Cairo,EG&method=5&language=ar' // رابط بديل
+            ];
 
-            } catch (error) {
-                console.error("فشل الاتصال، سيتم استخدام البيانات المحفوظة:", error);
+            let success = false;
+            let payload = null;
+
+            for (const url of urls) {
+                try {
+                    // إضافة طابع زمني لمنع المتصفح من استخدام نسخة قديمة مخزنة
+                    const response = await fetch(url + '&_=' + Date.now());
+                    if (!response.ok) throw new Error("Network response was not ok");
+                    
+                    const data = await response.json();
+                    payload = {
+                        timings: data.data.timings,
+                        hijri: data.data.date.hijri
+                    };
+                    
+                    // حفظ البيانات بنجاح في ذاكرة الموبايل
+                    localStorage.setItem('prayerData', JSON.stringify(payload));
+                    localStorage.setItem('lastFetchDate', new Date().toDateString());
+                    
+                    success = true;
+                    break; // الخروج من الحلقة بمجرد النجاح
+                } catch (error) {
+                    console.warn(`فشل الاتصال بالرابط: ${url}`, error);
+                    // سيكمل المحاولة مع الرابط التالي
+                }
+            }
+
+            loadingDot.classList.remove('active'); // إخفاء مؤشر التحميل
+
+            if (success) {
+                updateUI(payload); // تحديث الواجهة بالبيانات الجديدة
+            } else {
+                console.error("فشل جلب البيانات من جميع المصادر. سيتم الاعتماد على البيانات المحفوظة.");
+                // لا نفعل شيئاً، البيانات القديمة ستظل معروضة
             }
         }
 
-        // 1. التشغيل الأولي
-        updateGregorianDate(); // تحديث الميلادي فوراً
-        
-        // محاولة قراءة البيانات المحفوظة مسبقاً وعرضها فوراً
-        const savedData = localStorage.getItem('prayerData');
-        if (savedData) {
-            updateUI(JSON.parse(savedData));
-        }
-        
-        // محاولة جلب بيانات جديدة في الخلفية
-        fetchData();
+        // 4. الدالة الرئيسية التي تنسق كل شيء
+        function refreshAll() {
+            updateGregorianDate(); // تحديث الميلادي فوراً
 
-        // 2. التحديث المستمر (كل دقيقة)
-        setInterval(() => {
-            updateGregorianDate(); // تحديث التاريخ الميلادي كل دقيقة
-            
-            // جلب البيانات من السيرفر مرة واحدة بس في اليوم (أو لو الذاكرة فاضية)
-            // عشان نمنع الحظر ومتقلش على النت
-            const now = new Date();
-            const lastFetchDate = localStorage.getItem('lastFetchDate');
-            const today = now.toDateString();
+            // عرض البيانات المحفوظة فوراً (إن وجدت) لتجنب ظهور الشرطات
+            const savedData = localStorage.getItem('prayerData');
+            if (savedData) {
+                try {
+                    updateUI(JSON.parse(savedData));
+                } catch (e) { console.error("خطأ في قراءة البيانات المحفوظة", e); }
+            }
 
-            if (lastFetchDate !== today) {
+            // جلب بيانات جديدة إذا كان اليوم قد تغير أو إذا لم تكن هناك بيانات محفوظة
+            const lastFetch = localStorage.getItem('lastFetchDate');
+            const today = new Date().toDateString();
+            if (lastFetch !== today || !savedData) {
                 fetchData();
-                localStorage.setItem('lastFetchDate', today);
+            }
+        }
+
+        // --- تشغيل الأكواد ---
+
+        // التحديث الفوري عند فتح الشاشة أو الودجت
+        window.addEventListener('focus', refreshAll);
+        document.addEventListener("visibilitychange", () => {
+            if (document.visibilityState === "visible") refreshAll();
+        });
+
+        // التشغيل الأولي عند تحميل الصفحة
+        refreshAll();
+
+        // تحديث التاريخ الميلادي كل دقيقة (دون الحاجة للشبكة)
+        setInterval(updateGregorianDate, 60000);
+
+        // محاولة جلب بيانات جديدة كل ساعة (اختياري، لضمان تحديث المواقيت لو تغير اليوم أثناء الاستخدام)
+        setInterval(() => {
+            if (new Date().getMinutes() === 0) {
+                fetchData();
             }
         }, 60000);
-
     </script>
 </body>
 </html>
