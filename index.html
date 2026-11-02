@@ -1,71 +1,191 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>مواقيت الصلاة والتقويم</title>
     <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-        body { background: transparent; display: flex; justify-content: center; align-items: center; padding: 5px; }
-        .grid-container { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; width: 100%; max-width: 800px; }
-        .card { background-color: rgba(59, 66, 82, 0.85); border-radius: 20px; padding: 10px 5px; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #d8dee9; text-align: center; }
-        .card.dark { background-color: rgba(46, 52, 64, 0.85); }
-        .city { font-size: 13px; font-weight: 500; margin-bottom: 4px; }
-        .time { font-size: 28px; font-weight: 300; letter-spacing: 1px; margin-bottom: 2px; }
-        .ampm-day { font-size: 11px; color: #b0b8c8; }
-        @media (max-width: 400px) { .grid-container { grid-template-columns: repeat(2, 1fr); } }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, sans-serif; }
+        body { background: transparent; display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 5px; }
+        
+        .card {
+            background-color: #c7d2fe;
+            border: 3px solid #c7d2fe;
+            border-radius: 16px;
+            width: 100%;
+            max-width: 400px;
+            overflow: hidden;
+            display: grid;
+            grid-template-columns: repeat(6, 1fr);
+            gap: 2px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+        }
+
+        .cell { background-color: #ffffff; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; padding: 10px 5px; }
+        .half-width { grid-column: span 3; }
+        .third-width { grid-column: span 2; }
+
+        .year-cell { padding: 12px 0; font-weight: bold; font-size: 18px; color: #1e293b; background-color: #f8fafc; }
+        .month-cell { font-weight: bold; font-size: 16px; color: #0f172a; }
+        .day-cell { font-size: 32px; font-weight: bold; color: #4f46e5; background-color: #eef2ff; padding: 8px; }
+
+        .prayer-name { font-size: 13px; color: #4f46e5; font-weight: bold; margin-bottom: 5px; }
+        .prayer-time { font-size: 16px; color: #334155; font-weight: bold; direction: ltr; }
+        
+        .location-bar { grid-column: span 6; background-color: #f8fafc; font-size: 11px; color: #64748b; padding: 6px; text-align: center; font-weight: bold; }
+        
+        /* مؤشر تحميل صغير يظهر فقط عند جلب بيانات جديدة */
+        .loading-dot { width: 6px; height: 6px; border-radius: 50%; background-color: #4f46e5; position: absolute; top: 5px; left: 5px; opacity: 0; transition: opacity 0.3s; }
+        .loading-dot.active { opacity: 1; animation: pulse 1s infinite; }
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.3; } 100% { opacity: 1; } }
     </style>
 </head>
 <body>
-    <div class="grid-container" id="clock-grid"></div>
+
+    <div class="card" style="position: relative;">
+        <div class="loading-dot" id="loadingIndicator"></div>
+        
+        <div class="cell half-width year-cell" id="gregYear">----</div>
+        <div class="cell half-width year-cell" id="hijriYear">----</div>
+        <div class="cell half-width month-cell" id="gregMonth">----</div>
+        <div class="cell half-width month-cell" id="hijriMonth">----</div>
+        <div class="cell half-width day-cell" id="gregDay">--</div>
+        <div class="cell half-width day-cell" id="hijriDay">--</div>
+
+        <div class="cell third-width"><div class="prayer-name">الفجر</div><div class="prayer-time" id="fajr">--:--</div></div>
+        <div class="cell third-width"><div class="prayer-name">الشمس</div><div class="prayer-time" id="sunrise">--:--</div></div>
+        <div class="cell third-width"><div class="prayer-name">الظهر</div><div class="prayer-time" id="dhuhr">--:--</div></div>
+        <div class="cell third-width"><div class="prayer-name">العصر</div><div class="prayer-time" id="asr">--:--</div></div>
+        <div class="cell third-width"><div class="prayer-name">المغرب</div><div class="prayer-time" id="maghrib">--:--</div></div>
+        <div class="cell third-width"><div class="prayer-name">العشاء</div><div class="prayer-time" id="isha">--:--</div></div>
+        
+        <div class="location-bar">القاهرة، مصر (طريقة الأزهر الشريف)</div>
+    </div>
+
     <script>
-        const cities = [
-            { name: "Zürich", tz: "Europe/Zurich", dark: false }, { name: "Dubai", tz: "Asia/Dubai", dark: false },
-            { name: "Barcelona", tz: "Europe/Madrid", dark: false }, { name: "Cairo", tz: "Africa/Cairo", dark: false },
-            { name: "Mumbai", tz: "Asia/Kolkata", dark: false }, { name: "Amman", tz: "Asia/Amman", dark: false },
-            { name: "Hong Kong", tz: "Asia/Hong_Kong", dark: true }, { name: "Washington", tz: "America/New_York", dark: true },
-            { name: "Sydney", tz: "Australia/Sydney", dark: true }, { name: "California", tz: "America/Los_Angeles", dark: true },
-            { name: "Brussels", tz: "Europe/Brussels", dark: false }, { name: "London", tz: "Europe/London", dark: false }
-        ];
-
-        const grid = document.getElementById('clock-grid');
-        cities.forEach(city => {
-            const card = document.createElement('div');
-            card.className = `card ${city.dark ? 'dark' : ''}`;
-            card.innerHTML = `<div class="city">${city.name}</div><div class="time" id="time-${city.name.replace(/\s/g, '')}">--:--</div><div class="ampm-day" id="day-${city.name.replace(/\s/g, '')}">-- / ---</div>`;
-            grid.appendChild(card);
-        });
-
-        function updateTime() {
-            const now = new Date(); // بيجيب وقت الموبايل الحالي فوراً
-            cities.forEach(city => {
-                const timeElement = document.getElementById(`time-${city.name.replace(/\s/g, '')}`);
-                const dayElement = document.getElementById(`day-${city.name.replace(/\s/g, '')}`);
-                
-                // استخدام الدوال دي بيجبر المتصفح يقرأ الوقت الحالي مهما كان مجمد
-                const timeString = now.toLocaleTimeString('en-US', { timeZone: city.tz, hour: 'numeric', minute: '2-digit', hour12: true });
-                const dayString = now.toLocaleDateString('en-US', { timeZone: city.tz, weekday: 'short' });
-                
-                const [time, ampm] = timeString.split(' ');
-                timeElement.textContent = time;
-                dayElement.textContent = `${ampm} / ${dayString}`;
-            });
+        // دالة تحويل الوقت إلى نظام 12 ساعة
+        function formatTime12h(time24) {
+            if (!time24) return '--:--';
+            let [hours, minutes] = time24.split(':');
+            let h = parseInt(hours, 10);
+            h = h % 12;
+            h = h ? h : 12;
+            return `${h}:${minutes}`;
         }
 
-        // 1. تحديث كل ثانية (ده اللي بيخليها تظبط فوراً لما الشاشة تولع)
-        setInterval(updateTime, 1000);
+        // 1. تحديث التاريخ الميلادي (محلياً من الموبايل)
+        function updateGregorianDate() {
+            const now = new Date();
+            document.getElementById('gregYear').textContent = now.getFullYear();
+            document.getElementById('gregMonth').textContent = now.toLocaleDateString('ar-EG', { month: 'long' });
+            document.getElementById('gregDay').textContent = now.getDate();
+        }
 
-        // 2. محاولة إجبار النظام على التحديث لما الشاشة تولع
-        window.addEventListener('focus', updateTime);
-        document.addEventListener("visibilitychange", () => {
-            if (document.visibilityState === "visible") {
-                updateTime();
+        // 2. تحديث الواجهة بالبيانات (من الشبكة أو الذاكرة)
+        function updateUI(data) {
+            const timings = data.timings;
+            const hijri = data.hijri;
+
+            document.getElementById('hijriYear').textContent = hijri.year;
+            document.getElementById('hijriMonth').textContent = hijri.month.ar;
+            document.getElementById('hijriDay').textContent = hijri.day;
+
+            document.getElementById('fajr').textContent = formatTime12h(timings.Fajr);
+            document.getElementById('sunrise').textContent = formatTime12h(timings.Sunrise);
+            document.getElementById('dhuhr').textContent = formatTime12h(timings.Dhuhr);
+            document.getElementById('asr').textContent = formatTime12h(timings.Asr);
+            document.getElementById('maghrib').textContent = formatTime12h(timings.Maghrib);
+            document.getElementById('isha').textContent = formatTime12h(timings.Isha);
+        }
+
+        // 3. جلب البيانات من السيرفر
+        async function fetchData() {
+            const loadingDot = document.getElementById('loadingIndicator');
+            loadingDot.classList.add('active'); // إظهار مؤشر التحميل
+
+            // الرابط الأساسي والرابط الاحتياطي (كلاهما من AlAdhan)
+            const urls = [
+                'https://api.aladhan.com/v1/timingsByCity?city=Cairo&country=Egypt&method=5&language=ar',
+                'https://api.aladhan.com/v1/timingsByAddress?address=Cairo,EG&method=5&language=ar' // رابط بديل
+            ];
+
+            let success = false;
+            let payload = null;
+
+            for (const url of urls) {
+                try {
+                    // إضافة طابع زمني لمنع المتصفح من استخدام نسخة قديمة مخزنة
+                    const response = await fetch(url + '&_=' + Date.now());
+                    if (!response.ok) throw new Error("Network response was not ok");
+                    
+                    const data = await response.json();
+                    payload = {
+                        timings: data.data.timings,
+                        hijri: data.data.date.hijri
+                    };
+                    
+                    // حفظ البيانات بنجاح في ذاكرة الموبايل
+                    localStorage.setItem('prayerData', JSON.stringify(payload));
+                    localStorage.setItem('lastFetchDate', new Date().toDateString());
+                    
+                    success = true;
+                    break; // الخروج من الحلقة بمجرد النجاح
+                } catch (error) {
+                    console.warn(`فشل الاتصال بالرابط: ${url}`, error);
+                    // سيكمل المحاولة مع الرابط التالي
+                }
             }
-        });
-        
-        // 3. التحديث عند لمس الشاشة أو تحريك الموبايل
-        document.addEventListener('touchstart', updateTime);
 
-        updateTime(); // التشغيل الأول
+            loadingDot.classList.remove('active'); // إخفاء مؤشر التحميل
+
+            if (success) {
+                updateUI(payload); // تحديث الواجهة بالبيانات الجديدة
+            } else {
+                console.error("فشل جلب البيانات من جميع المصادر. سيتم الاعتماد على البيانات المحفوظة.");
+                // لا نفعل شيئاً، البيانات القديمة ستظل معروضة
+            }
+        }
+
+        // 4. الدالة الرئيسية التي تنسق كل شيء
+        function refreshAll() {
+            updateGregorianDate(); // تحديث الميلادي فوراً
+
+            // عرض البيانات المحفوظة فوراً (إن وجدت) لتجنب ظهور الشرطات
+            const savedData = localStorage.getItem('prayerData');
+            if (savedData) {
+                try {
+                    updateUI(JSON.parse(savedData));
+                } catch (e) { console.error("خطأ في قراءة البيانات المحفوظة", e); }
+            }
+
+            // جلب بيانات جديدة إذا كان اليوم قد تغير أو إذا لم تكن هناك بيانات محفوظة
+            const lastFetch = localStorage.getItem('lastFetchDate');
+            const today = new Date().toDateString();
+            if (lastFetch !== today || !savedData) {
+                fetchData();
+            }
+        }
+
+        // --- تشغيل الأكواد ---
+
+        // التحديث الفوري عند فتح الشاشة أو الودجت
+        window.addEventListener('focus', refreshAll);
+        document.addEventListener("visibilitychange", () => {
+            if (document.visibilityState === "visible") refreshAll();
+        });
+
+        // التشغيل الأولي عند تحميل الصفحة
+        refreshAll();
+
+        // تحديث التاريخ الميلادي كل دقيقة (دون الحاجة للشبكة)
+        setInterval(updateGregorianDate, 60000);
+
+        // محاولة جلب بيانات جديدة كل ساعة (اختياري، لضمان تحديث المواقيت لو تغير اليوم أثناء الاستخدام)
+        setInterval(() => {
+            if (new Date().getMinutes() === 0) {
+                fetchData();
+            }
+        }, 60000);
     </script>
 </body>
 </html>
